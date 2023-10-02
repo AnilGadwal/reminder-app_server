@@ -18,6 +18,10 @@ const eventRoutes = require('./routes/eventRoutes');
 app.use(base_url, userRoutes);
 app.use(base_url, eventRoutes);
 
+app.get('/', (res, req)=>{
+  res.send("Welcome to Fhynix server homepage");
+})
+
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
