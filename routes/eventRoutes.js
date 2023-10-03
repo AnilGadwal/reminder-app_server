@@ -90,6 +90,7 @@ router.post("/createNewEvent", (req, res) => {
       });
       job.start();
       addJobToDb(event_id, job.options.name);
+      console.log(job)
     }
   });
 });
