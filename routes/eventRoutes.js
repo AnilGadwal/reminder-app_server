@@ -83,7 +83,7 @@ router.post("/createNewEvent", (req, res) => {
         .json({ error: "An error occurred while processing the request" });
     } else {
       const cronExpression = getCronExpression(event_date_local);
-      res.status(201).json({ message: "User registration successful" });
+      res.status(201).json({ message: "Event Created successful" });
       const job = cron.schedule(cronExpression, function () {
         const payload = JSON.stringify({ title: type, body: description });
         webpush.sendNotification(push, payload);
@@ -97,7 +97,9 @@ router.post("/createNewEvent", (req, res) => {
 // VIEW ALL EVENTS
 router.get("/events", (req, res) => {
   const { user_id } = req.headers;
-  const query = "SELECT * FROM events WHERE user_id = ?";
+  const timAadjustedQuery = "SELECT event_id, user_id, description, priority, type, ADDTIME(event_date, '-5:30') AS adjusted_event_date FROM events WHERE user_id = ?";
+  const normalQuery = "SELECT event_id, user_id, description, priority, type, event_date AS adjusted_event_date FROM events WHERE user_id = ?";
+  const query = process.env.ENVIRONMENT === 'local' ? normalQuery : timAadjustedQuery;
   const values = [user_id];
   db.query(query, values, (err, results) => {
     if (err) {
