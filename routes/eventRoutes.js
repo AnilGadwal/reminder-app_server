@@ -74,6 +74,15 @@ router.post("/createNewEvent", (req, res) => {
   const query =
     "INSERT INTO events (event_id, user_id, description, event_date, type, priority) VALUES (?, ?, ?, ?, ?, ?)";
   const values = [event_id, user_id, description, event_date, type, priority];
+  const currentDateTime = new Date();
+
+// Get current local date and time in various formats
+const localDate = currentDateTime.toLocaleDateString(); // "MM/DD/YYYY" format
+const localTime = currentDateTime.toLocaleTimeString(); // "HH:MM:SS AM/PM" format
+const localDateTime = currentDateTime.toLocaleString(); // "MM/DD/YYYY, HH:MM:SS AM/PM" format
+
+console.log("Local Date and Time:", localDateTime);
+
   const event_date_local = process.env.ENVIRONMENT !== 'local' ? getLocalTime(event_date) : getLocalTime(event_date, -660)
   db.query(query, values, (err) => {
     if (err) {
