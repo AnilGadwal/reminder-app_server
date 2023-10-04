@@ -75,7 +75,7 @@ router.post("/createNewEvent", (req, res) => {
     "INSERT INTO events (event_id, user_id, description, event_date, type, priority) VALUES (?, ?, ?, ?, ?, ?)";
   const values = [event_id, user_id, description, event_date, type, priority];
 
-  const event_date_local = process.env.ENVIRONMENT === 'local' ? getLocalTime(event_date) : new Date(event_date);
+  const event_date_local = process.env.ENVIRONMENT === 'local' ? getLocalTime(event_date) : getLocalTime(event_date, 0);
   db.query(query, values, (err) => {
     if (err) {
       console.error("Database query error:", err);
