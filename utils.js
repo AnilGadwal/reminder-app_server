@@ -1,7 +1,7 @@
-const getLocalTime = (date) => {
+const getLocalTime = (date, offset) => {
   if (date) {
     const eventDate = new Date(date);
-    const userTimeZoneOffsetInMinutes = new Date().getTimezoneOffset();
+    const userTimeZoneOffsetInMinutes = offset !== undefined ? offset : new Date().getTimezoneOffset();
     const eventDateInLocalTimezone = new Date(
       eventDate.getTime() - userTimeZoneOffsetInMinutes * 60000
     );
