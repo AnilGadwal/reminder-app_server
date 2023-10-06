@@ -3,10 +3,11 @@ const express = require("express");
 const router = express.Router();
 const webpush = require("web-push");
 const db = require("../db");
-const cron = require("node-cron");
+const {CronJob} = require("cron");
 const { v4: uuidv4 } = require("uuid");
 const { getLocalTime, getCronExpression } = require("../utils");
-
+const btoa = require('btoa')
+const atob = require('atob')
 const publicKey = process.env.VAPID_PUBLIC_KEY;
 const privateKey = process.env.VAPID_PRIVATE_KEY;
 
@@ -16,10 +17,13 @@ webpush.setVapidDetails(
   privateKey
 );
 
+const allJobs = new Map();
+
 // ADD THE SCHEDULED NOTIFICATION TO THE DB ALONG WITH ASSOCIATED EVENT ID
-const addJobToDb = (event_id, job_id) => {
-  const query = "INSERT INTO jobs (event_id, job_id) VALUES (?, ?)";
-  const values = [event_id, job_id];
+const addJobToDb = (event_id, job_id, push) => {
+  const encodedPush = btoa(JSON.stringify(push));
+  const query = "INSERT INTO jobs (event_id, job_id, push) VALUES (?, ?, ?)";
+  const values = [event_id, job_id, encodedPush];
   db.query(query, values, (err) => {
     if (err) {
       console.log("ERROR while adding notification to DB:", err);
@@ -38,8 +42,8 @@ const deleteJob = (event_id) => {
         console.log("ERROR while deleting notification from DB", err);
         reject("ERROR while deleting notification from DB");
       } else {
-        const allActiveTasks = cron.getTasks();
-        const jobToCancel = allActiveTasks?.get(results?.[0]?.job_id);
+        const jobID = results?.[0]?.job_id
+        const jobToCancel = allJobs?.get(jobID);
         jobToCancel?.stop();
         resolve();
       }
@@ -48,23 +52,26 @@ const deleteJob = (event_id) => {
 };
 
 // DELETE OLD SCHEDULED NOTIFICATION AND CREATE A NEW ONE WITH A NEW SCHEDULE
-// const editJob = (event_id, cron_expression, type, description) =>{
-//   const query = "SELECT job_id FROM jobs WHERE event_id = ?";
-//   const values = [event_id];
-//   db.query(query, values, (err, results) => {
-//     if (err) {
-//       console.log("ERROR while deleting notification from DB", err);
-//     } else {
-//       const allActiveTasks = cron.getTasks();
-//       const jobToCancel = allActiveTasks?.get(results?.[0]?.job_id);
-//       jobToCancel?.stop();
-//       cron.schedule(cron_expression, function () {
-//         const payload = JSON.stringify({ title: type, body: description });
-//         webpush.sendNotification(push, payload);
-//       });
-//     }
-//   });
-// }
+const editJob = (event_id, cron_expression, type, description) =>{
+  const query = "SELECT job_id, push FROM jobs WHERE event_id = ?";
+  const values = [event_id];
+  db.query(query, values, (err, results) => {
+    if (err) {
+      console.log("ERROR while deleting notification from DB", err);
+    } else {
+      const jobID = results?.[0]?.job_id;
+      const pushString = results?.[0]?.push
+      const push = JSON.parse(atob(pushString))
+      const jobToCancel = allJobs?.get(jobID);
+      jobToCancel?.stop();
+      const job = new CronJob(cron_expression, function () {
+        const payload = JSON.stringify({ title: type, body: description });
+        webpush.sendNotification(push, payload);
+      });
+      job.start()
+    }
+  });
+}
 
 // CREATE AN EVENT
 router.post("/createNewEvent", (req, res) => {
@@ -85,13 +92,14 @@ router.post("/createNewEvent", (req, res) => {
     } else {
       const cronExpression = getCronExpression(event_date_local);
       res.status(201).json({ message: "Event Created successful" });
-      const job = cron.schedule(cronExpression, function () {
+      const job = new CronJob(cronExpression, function () {
         const payload = JSON.stringify({ title: type, body: description });
         webpush.sendNotification(push, payload);
       });
+      const jobID = uuidv4()
+      allJobs.set(jobID, job)
       job.start();
-      addJobToDb(event_id, job.options.name);
-      console.log(job)
+      addJobToDb(event_id, jobID, push);
     }
   });
 });
@@ -165,9 +173,11 @@ router.put("/events/:event_id", (req, res) => {
         .json({ error: "An error occurred while processing the request" });
     } else if (result.affectedRows === 0) {
       res.status(404).json({ error: "Event not found" });
+      console.log("Event not found")
     } else {
-      // const newCronExpression = getCronExpression(getLocalTime(event_date))
-      // editJob(event_id, newCronExpression, type, description)
+      console.log("Event updated successfully")
+      const newCronExpression = getCronExpression(getLocalTime(event_date))
+      editJob(event_id, newCronExpression, type, description)
       res.status(200).json({ message: "Event updated successfully" });
     }
   });
